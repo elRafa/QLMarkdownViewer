@@ -1,62 +1,76 @@
 BUNDLE_NAME = QLMarkdownViewer
-BUNDLE = $(BUNDLE_NAME).qlgenerator
+APP = $(BUNDLE_NAME).app
+APPEX = QLMarkdownPreview.appex
 BUILD_DIR = build
-INSTALL_DIR = $(HOME)/Library/QuickLook
+INSTALL_DIR = $(HOME)/Applications
 
-SWIFT_FILES = src/MarkdownParser.swift src/GeneratePreviewForURL.swift src/GenerateThumbnailForURL.swift
-C_FILES = src/main.c
+# Host app source
+HOST_SRC = src/HostApp.swift
 
-SWIFT_FLAGS = -parse-as-library -O -module-name $(BUNDLE_NAME) -emit-library \
-	-framework QuickLook -framework CoreServices -framework CoreFoundation
-
-C_FLAGS = -framework CoreFoundation -framework CoreServices -framework QuickLook
+# Extension sources (shared MarkdownParser + preview controller)
+EXT_SRC = src/PreviewViewController.swift src/MarkdownParser.swift
 
 .PHONY: build install uninstall clean test
 
 build: clean
-	@echo "Building $(BUNDLE)..."
-	@mkdir -p $(BUILD_DIR)/$(BUNDLE)/Contents/MacOS
-	@mkdir -p $(BUILD_DIR)/$(BUNDLE)/Contents/Resources
+	@echo "Building $(APP) with embedded Quick Look extension..."
 
-	# Compile Swift sources into a dynamic library
-	swiftc $(SWIFT_FLAGS) \
-		-o $(BUILD_DIR)/lib$(BUNDLE_NAME).dylib \
-		$(SWIFT_FILES)
+	# Create app bundle structure
+	@mkdir -p $(BUILD_DIR)/$(APP)/Contents/MacOS
+	@mkdir -p $(BUILD_DIR)/$(APP)/Contents/Resources
+	@mkdir -p $(BUILD_DIR)/$(APP)/Contents/PlugIns/$(APPEX)/Contents/MacOS
+	@mkdir -p $(BUILD_DIR)/$(APP)/Contents/PlugIns/$(APPEX)/Contents/Resources
 
-	# Compile C entry point and link with Swift library
-	clang $(C_FLAGS) \
-		-L$(BUILD_DIR) -l$(BUNDLE_NAME) \
-		-Xlinker -rpath -Xlinker @loader_path \
-		-bundle \
-		-o $(BUILD_DIR)/$(BUNDLE)/Contents/MacOS/$(BUNDLE_NAME) \
-		$(C_FILES)
+	# Build host app
+	swiftc -O -o $(BUILD_DIR)/$(APP)/Contents/MacOS/$(BUNDLE_NAME) \
+		-framework AppKit \
+		$(HOST_SRC)
 
-	# Copy dylib into bundle
-	@cp $(BUILD_DIR)/lib$(BUNDLE_NAME).dylib $(BUILD_DIR)/$(BUNDLE)/Contents/MacOS/
+	# Build extension as XPC service (no main entry point)
+	swiftc -O -parse-as-library -module-name QLMarkdownPreview \
+		-o $(BUILD_DIR)/$(APP)/Contents/PlugIns/$(APPEX)/Contents/MacOS/QLMarkdownPreview \
+		-framework Cocoa -framework Quartz \
+		-Xlinker -e -Xlinker _NSExtensionMain \
+		-application-extension \
+		$(EXT_SRC)
 
-	# Copy resources
-	@cp resources/Info.plist $(BUILD_DIR)/$(BUNDLE)/Contents/
-	@cp resources/style.css $(BUILD_DIR)/$(BUNDLE)/Contents/Resources/
+	# Copy Info.plist files
+	@cp resources/HostApp-Info.plist $(BUILD_DIR)/$(APP)/Contents/Info.plist
+	@cp resources/Extension-Info.plist $(BUILD_DIR)/$(APP)/Contents/PlugIns/$(APPEX)/Contents/Info.plist
 
-	@echo "Build complete: $(BUILD_DIR)/$(BUNDLE)"
+	# Copy CSS to extension resources
+	@cp resources/style.css $(BUILD_DIR)/$(APP)/Contents/PlugIns/$(APPEX)/Contents/Resources/
+
+	# Code sign extension first, then app
+	@codesign --force --sign - \
+		--entitlements resources/Extension.entitlements \
+		$(BUILD_DIR)/$(APP)/Contents/PlugIns/$(APPEX)
+	@codesign --force --sign - \
+		$(BUILD_DIR)/$(APP)
+
+	@echo "Build complete: $(BUILD_DIR)/$(APP)"
 
 install: build
 	@echo "Installing to $(INSTALL_DIR)..."
 	@mkdir -p $(INSTALL_DIR)
-	@rm -rf $(INSTALL_DIR)/$(BUNDLE)
-	@cp -R $(BUILD_DIR)/$(BUNDLE) $(INSTALL_DIR)/
-	@qlmanage -r 2>/dev/null || true
-	@echo "Installed. Quick Look plugins reloaded."
+	@rm -rf $(INSTALL_DIR)/$(APP)
+	@cp -R $(BUILD_DIR)/$(APP) $(INSTALL_DIR)/
+	@echo "Installed to $(INSTALL_DIR)/$(APP)"
+	@echo ""
+	@echo "To activate: open the app once, then enable in"
+	@echo "  System Settings > General > Login Items & Extensions > Quick Look"
 
 uninstall:
-	@echo "Uninstalling $(BUNDLE)..."
-	@rm -rf $(INSTALL_DIR)/$(BUNDLE)
-	@qlmanage -r 2>/dev/null || true
-	@echo "Uninstalled."
+	@echo "Uninstalling $(APP)..."
+	@rm -rf $(INSTALL_DIR)/$(APP)
+	@echo "Uninstalled. You may need to restart Finder."
 
 clean:
 	@rm -rf $(BUILD_DIR)
 
 test: install
+	@echo "Opening app to register extension..."
+	@open $(INSTALL_DIR)/$(APP)
+	@sleep 2
 	@echo "Testing Quick Look preview..."
 	@qlmanage -p test/sample.md

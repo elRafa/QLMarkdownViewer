@@ -142,5 +142,5 @@ After installation, press Space on any `.md` or `.markdown` file in Finder to se
 
 - Name: `QLMarkdownViewer`
 - Owner: `YendiGB`
-- Visibility: public (open-source utility)
+- Visibility: private
 - License: MIT
