@@ -20,8 +20,18 @@
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
-    <key>LSUIElement</key>
-    <true/>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Needed to render local images referenced in the previewed Markdown file.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Needed to render local images referenced in the previewed Markdown file.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Needed to render local images referenced in the previewed Markdown file.</string>
+    <key>NSPicturesFolderUsageDescription</key>
+    <string>Needed to render local images referenced in the previewed Markdown file.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>Needed to render local images referenced in the previewed Markdown file.</string>
+    <key>NSNetworkVolumesUsageDescription</key>
+    <string>Needed to render local images referenced in the previewed Markdown file.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>

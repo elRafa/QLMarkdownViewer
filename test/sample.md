@@ -12,7 +12,13 @@ Here is some ~~strikethrough~~ text and `inline code`.
 
 [Visit GitHub](https://github.com)
 
-![Alt text](https://via.placeholder.com/150)
+Remote image:
+
+![Remote placeholder](https://placehold.co/150)
+
+Local relative image:
+
+![Local red square](red.png)
 
 ## Code Block
 
