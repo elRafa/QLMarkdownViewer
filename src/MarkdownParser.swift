@@ -227,23 +227,22 @@ struct MarkdownParser {
 
     private static func replacePattern(_ text: String, _ pattern: String, _ replacement: (String, [String]) -> String) -> String {
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return text }
-        let nsText = text as NSString
-        var result = text
-        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsText.length))
-        // Process in reverse to preserve ranges
+        let mutable = NSMutableString(string: text)
+        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: mutable.length))
+        // NSMutableString throughout so NSRange (UTF-16) offsets stay valid —
+        // mixing NSRange with String.index(_:offsetBy:) traps on text with
+        // surrogate-pair characters (emoji, etc).
         for match in matches.reversed() {
-            let fullMatch = nsText.substring(with: match.range)
+            let fullMatch = mutable.substring(with: match.range)
             var groups: [String] = []
             for g in 1..<match.numberOfRanges {
                 if match.range(at: g).location != NSNotFound {
-                    groups.append(nsText.substring(with: match.range(at: g)))
+                    groups.append(mutable.substring(with: match.range(at: g)))
                 }
             }
             let replacementStr = replacement(fullMatch, groups)
-            let startIndex = result.index(result.startIndex, offsetBy: match.range.location)
-            let endIndex = result.index(startIndex, offsetBy: match.range.length)
-            result.replaceSubrange(startIndex..<endIndex, with: replacementStr)
+            mutable.replaceCharacters(in: match.range, with: replacementStr)
         }
-        return result
+        return mutable as String
     }
 }

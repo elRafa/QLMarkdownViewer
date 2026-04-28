@@ -12,6 +12,7 @@ class PreviewProvider: NSViewController, QLPreviewingController {
     }
 
     func providePreview(for request: QLFilePreviewRequest, completionHandler handler: @escaping (QLPreviewReply?, Error?) -> Void) {
+        log.info("providePreview called for: \(request.fileURL.path, privacy: .public)")
         do {
             let data = try Data(contentsOf: request.fileURL)
             let markdown = String(data: data, encoding: .utf8) ?? ""
@@ -40,6 +41,7 @@ class PreviewProvider: NSViewController, QLPreviewingController {
             </html>
             """
 
+            log.info("providePreview built html, bytes=\(html.utf8.count) bodyLen=\(bodyWithResolvedImages.count)")
             // Use dataOfContentType so Quick Look hosts the HTML in its own
             // WebView context — sub-resource fetches (remote images) work
             // without the extension's sandbox-tmp file:// origin getting in
@@ -51,6 +53,7 @@ class PreviewProvider: NSViewController, QLPreviewingController {
             }
             handler(reply, nil)
         } catch {
+            log.error("providePreview failed: \(error.localizedDescription, privacy: .public)")
             handler(nil, error)
         }
     }

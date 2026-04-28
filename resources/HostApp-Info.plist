@@ -4,6 +4,22 @@
 <dict>
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Markdown Document</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>None</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>net.daringfireball.markdown</string>
+                <string>public.markdown</string>
+            </array>
+        </dict>
+    </array>
     <key>CFBundleExecutable</key>
     <string>QLMarkdownViewer</string>
     <key>CFBundleIdentifier</key>
