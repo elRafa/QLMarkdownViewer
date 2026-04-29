@@ -1,7 +1,12 @@
 import Foundation
 
 struct MarkdownParser {
-    static func toHTML(_ markdown: String) -> String {
+    /// Hard cap on blockquote recursion to prevent stack-overflow DoS from
+    /// markdown with thousands of leading `>` characters.
+    private static let maxBlockquoteDepth = 32
+
+    static func toHTML(_ markdown: String, depth: Int = 0) -> String {
+        if depth > Self.maxBlockquoteDepth { return "" }
         var lines = markdown.components(separatedBy: "\n")
         var html = ""
         var i = 0
@@ -58,7 +63,7 @@ struct MarkdownParser {
                     quoteLines.append(stripped)
                     i += 1
                 }
-                let inner = MarkdownParser.toHTML(quoteLines.joined(separator: "\n"))
+                let inner = MarkdownParser.toHTML(quoteLines.joined(separator: "\n"), depth: depth + 1)
                 html += "<blockquote>\n\(inner)</blockquote>\n"
                 continue
             }
@@ -180,14 +185,20 @@ struct MarkdownParser {
             "<code>\(groups[0])</code>"
         }
 
-        // Images
+        // Images — only allow http/https/relative-path; otherwise emit alt
+        // text. Blocks javascript:, data:, vbscript:, etc. as image sources.
         result = replacePattern(result, #"!\[([^\]]*)\]\(([^)]+)\)"#) { match, groups in
-            "<img src=\"\(groups[1])\" alt=\"\(groups[0])\">"
+            isSafeImageSrc(groups[1])
+                ? "<img src=\"\(groups[1])\" alt=\"\(groups[0])\">"
+                : groups[0]
         }
 
-        // Links
+        // Links — only allow http/https/mailto/relative; otherwise emit the
+        // link text. Blocks javascript: and data: hrefs.
         result = replacePattern(result, #"\[([^\]]+)\]\(([^)]+)\)"#) { match, groups in
-            "<a href=\"\(groups[1])\">\(groups[0])</a>"
+            isSafeLinkHref(groups[1])
+                ? "<a href=\"\(groups[1])\">\(groups[0])</a>"
+                : groups[0]
         }
 
         // Bold + italic
@@ -217,6 +228,38 @@ struct MarkdownParser {
     }
 
     // MARK: - Utilities
+
+    /// Whitelist URL schemes that are safe to embed in <a href="..."> from
+    /// untrusted markdown. Anything outside this set (notably javascript: and
+    /// data:) is rejected so a malicious .md file can't execute scripts when
+    /// the user clicks a link.
+    static func isSafeLinkHref(_ raw: String) -> Bool {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return false }
+        if trimmed.hasPrefix("#") || trimmed.hasPrefix("/") || trimmed.hasPrefix("./") || trimmed.hasPrefix("../") {
+            return true
+        }
+        if let colonIdx = trimmed.firstIndex(of: ":") {
+            let scheme = trimmed[..<colonIdx].lowercased()
+            return scheme == "http" || scheme == "https" || scheme == "mailto"
+        }
+        return true // no colon = path-relative
+    }
+
+    /// Whitelist URL schemes for <img src="...">. Excludes mailto since it
+    /// makes no sense for an image and javascript:/data: which are dangerous.
+    static func isSafeImageSrc(_ raw: String) -> Bool {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return false }
+        if trimmed.hasPrefix("/") || trimmed.hasPrefix("./") || trimmed.hasPrefix("../") {
+            return true
+        }
+        if let colonIdx = trimmed.firstIndex(of: ":") {
+            let scheme = trimmed[..<colonIdx].lowercased()
+            return scheme == "http" || scheme == "https"
+        }
+        return true // no colon = path-relative
+    }
 
     static func escapeHTML(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;")
