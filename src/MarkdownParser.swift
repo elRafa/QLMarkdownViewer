@@ -29,7 +29,7 @@ struct MarkdownParser {
                 continue
             }
 
-            // Heading
+            // Heading (ATX requires space after hashes; `#2 foo` is not a heading)
             if let match = line.range(of: #"^(#{1,6})\s+(.+)$"#, options: .regularExpression) {
                 let full = String(line[match])
                 let hashCount = full.prefix(while: { $0 == "#" }).count
@@ -86,11 +86,14 @@ struct MarkdownParser {
                 continue
             }
 
-            // Paragraph
+            // Paragraph. Stop before real ATX headings (`# ` + text), not every
+            // `#` prefix — otherwise `#2, but...` never matches a block rule and
+            // never enters this loop, so `i` never advances (100% CPU hang).
             var paraLines: [String] = []
+            let iBefore = i
             while i < lines.count &&
                   !lines[i].trimmingCharacters(in: .whitespaces).isEmpty &&
-                  !lines[i].hasPrefix("#") &&
+                  lines[i].range(of: #"^(#{1,6})\s+(.+)$"#, options: .regularExpression) == nil &&
                   !lines[i].hasPrefix("```") &&
                   !lines[i].hasPrefix(">") &&
                   lines[i].range(of: #"^[-*+]\s+"#, options: .regularExpression) == nil &&
@@ -101,6 +104,8 @@ struct MarkdownParser {
             }
             if !paraLines.isEmpty {
                 html += "<p>\(inlineMarkdown(paraLines.joined(separator: "\n")))</p>\n"
+            } else if i == iBefore {
+                i += 1
             }
         }
 
